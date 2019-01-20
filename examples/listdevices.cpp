@@ -28,56 +28,39 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
 #include <thread>
 #include <chrono>
 #include <cstdint>
-
 #include "master.h"
 #include "logger.h"
-
 // This example lists all connected devices and prints their manufacturer device name.
-
 int main() {
-
-	// Set the name of your CAN bus. "slcan0" is a common bus name
-	// for the first SocketCAN device on a Linux system.
-	const std::string busname = "slcan0";
-
-	// Set the baudrate of your CAN bus. Most drivers support the values
-	// "1M", "500K", "125K", "100K", "50K", "20K", "10K" and "5K".
-	const std::string baudrate = "500K";
-
-	PRINT("List devices");
-
-	kaco::Master master;
-
-	if (!master.start(busname, baudrate)) {
-		ERROR("Starting master failed.");
-		return EXIT_FAILURE;
-	}
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-	const size_t num_devices = master.num_devices();
-
-	DUMP(num_devices);
-
-	for (size_t i=0; i<num_devices; ++i) {
-		
-		kaco::Device& device = master.get_device(i);
-		PRINT("Found device: " << device.get_node_id());
-
-		PRINT("Starting");
-		device.start();
-
-		PRINT("Loading EDS from library...")
-		const std::string loaded_eds_file = device.load_dictionary_from_library();
-		PRINT("Loaded the following EDS file from the library: " << loaded_eds_file);
-
-		PRINT("Dictionary:");
-		device.read_complete_dictionary();
-		device.print_dictionary();
-
-	}
-
+    // Set the name of your CAN bus. "slcan0" is a common bus name
+    // for the first SocketCAN device on a Linux system.
+    const std::string busname = "slcan0";
+    // Set the baudrate of your CAN bus. Most drivers support the values
+    // "1M", "500K", "125K", "100K", "50K", "20K", "10K" and "5K".
+    const std::string baudrate = "500K";
+    PRINT("List devices");
+    kaco::Master master;
+    if (!master.start(busname, baudrate)) {
+        ERROR("Starting master failed.");
+        return EXIT_FAILURE;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    const size_t num_devices = master.num_devices();
+    DUMP(num_devices);
+    for (size_t i=0; i<num_devices; ++i) {
+        
+        kaco::Device& device = master.get_device(i);
+        PRINT("Found device: " << device.get_node_id());
+        PRINT("Starting");
+        device.start();
+        PRINT("Loading EDS from library...")
+        const std::string loaded_eds_file = device.load_dictionary_from_library();
+        PRINT("Loaded the following EDS file from the library: " << loaded_eds_file);
+        PRINT("Dictionary:");
+        device.read_complete_dictionary();
+        device.print_dictionary();
+    }
 }

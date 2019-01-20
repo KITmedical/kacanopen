@@ -95,6 +95,8 @@ namespace kaco {
 		/// \remark thread-safe
 		void add_pdo_received_callback(uint16_t cob_id, PDOReceivedCallback::Callback callback);
 
+    void remove_pdo_received_callback(uint16_t cob_id);
+
 	private:
 
 		static const bool debug = false;

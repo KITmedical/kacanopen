@@ -48,14 +48,16 @@ namespace kaco {
 Device::Device(Core& core, uint8_t node_id)
 	: m_core(core), m_node_id(node_id), m_eds_library(m_dictionary, m_name_to_address) { }
 
-Device::~Device() 
-	{ }
+Device::~Device() {
+  for (auto& cob_id : cob_ids_)
+    m_core.pdo.remove_pdo_received_callback(cob_id);
+}
 
 void Device::start() {
 
 	m_core.nmt.send_nmt_message(m_node_id,NMT::Command::start_node);
 
-	if (!m_eds_library.lookup_library()) {
+  if (!m_eds_library.lookup_library()) {
 		throw canopen_error("[Device::start] EDS library not found. If and only if you make sure for yourself, that mandatory"
 			" entries and operations are available, you can catch this error and go on.");
 	}
@@ -64,7 +66,7 @@ void Device::start() {
 		throw canopen_error("[Device::start] Could not load mandatory dictionary entries."
 			" If and only if you make sure for yourself, that mandatory"
 			" entries and operations are available, you can catch this error and go on.");
-	}
+  }
 
 	load_operations();
 	load_constants();
@@ -192,9 +194,48 @@ void Device::add_receive_pdo_mapping(uint16_t cob_id, const std::string& entry_n
 
 	// TODO: this only works while add_pdo_received_callback takes callback by value.
 	auto binding = std::bind(&Device::pdo_received_callback, this, pdo, std::placeholders::_1);
+  cob_ids_.push_back(cob_id);
 	m_core.pdo.add_pdo_received_callback(cob_id, std::move(binding));
 
 }
+
+void Device::add_receive_pdo_mapping(uint16_t cob_id, const std::string& entry_name, uint8_t offset,
+                             std::function<void(const ReceivePDOMapping&, std::vector<uint8_t>)> funtion){
+
+  // TODO: update entry's default access method
+
+  const std::string name = Utils::escape(entry_name);
+
+  if (!has_entry(name)) {
+    throw dictionary_error(dictionary_error::type::unknown_entry, name);
+  }
+
+  Entry& entry = m_dictionary[m_name_to_address[name]];
+
+  const uint8_t type_size = Utils::get_type_size(entry.type);
+
+  if (offset+type_size > 8) {
+    throw dictionary_error(dictionary_error::type::mapping_size, name,
+      "offset ("+std::to_string(offset)+") + type_size ("+std::to_string(type_size)+") > 8.");
+  }
+
+
+  ReceivePDOMapping *pdo_temp;
+
+  {
+    std::lock_guard<std::mutex> lock(m_receive_pdo_mappings_mutex);
+    m_receive_pdo_mappings.push_front({cob_id,name,offset});
+    pdo_temp = &m_receive_pdo_mappings.front();
+  }
+
+  ReceivePDOMapping& pdo = *pdo_temp;
+
+  // TODO: this only works while add_pdo_received_callback takes callback by value.
+  auto binding = std::bind(funtion, pdo, std::placeholders::_1);
+  m_core.pdo.add_pdo_received_callback(cob_id, std::move(binding));
+
+}
+
 
 
 void Device::add_transmit_pdo_mapping(uint16_t cob_id, const std::vector<Mapping>& mappings, TransmissionType transmission_type, std::chrono::milliseconds repeat_time) {
@@ -267,7 +308,8 @@ void Device::pdo_received_callback(const ReceivePDOMapping& mapping, std::vector
 	}
 
 	DEBUG_LOG("Updating entry "<<entry.name<<".");
-	std::vector<uint8_t> bytes(data.begin()+offset, data.begin()+offset+type_size);
+  //std::vector<uint8_t> bytes(data.begin()+offset, data.begin()+offset+type_size);
+  std::vector<uint8_t> bytes(data.begin()+offset, data.begin()+offset+type_size);
 	entry.set_value(Value(entry.type,bytes));
 
 }
@@ -395,17 +437,17 @@ void Device::load_dictionary_from_eds(const std::string& path) {
 	}
 
 	// Load generic names from the standard CiA profiles on top of the existing dictionary.
-	if (m_eds_library.ready()) {
-		// Wo know nothing about the EDS... No mandatory entries here. At least 0x1000 is required for load_cia_dictionary():
-		if (!has_entry(0x1000)) {
-			add_entry(0x1000,0,"device_type",Type::uint32,AccessType::read_only);
-		}
-		Config::eds_reader_just_add_mappings = true;
-		load_cia_dictionary();
-		Config::eds_reader_just_add_mappings = false;
-	} else {
-		WARN("[Device::load_dictionary_from_eds] Cannot load generic entry names because EDS library is not available.");
-	}
+  if (m_eds_library.ready()) {
+    // Wo know nothing about the EDS... No mandatory entries here. At least 0x1000 is required for load_cia_dictionary():
+    if (!has_entry(0x1000)) {
+      add_entry(0x1000,0,"device_type",Type::uint32,AccessType::read_only);
+    }
+    Config::eds_reader_just_add_mappings = true;
+    load_cia_dictionary();
+    Config::eds_reader_just_add_mappings = false;
+  } else {
+    WARN("[Device::load_dictionary_from_eds] Cannot load generic entry names because EDS library is not available.");
+  }
 
 }
 
@@ -464,10 +506,10 @@ void Device::print_dictionary() const {
 	using EntryRef = std::reference_wrapper<const kaco::Entry>;
 	std::vector<EntryRef> entries;
 
-	for (const auto& pair : m_dictionary) {
-		if (!pair.second.disabled) {
+  for (const auto& pair : m_dictionary) {
+    if (!pair.second.disabled) {
 			entries.push_back(std::ref(pair.second));
-		}
+    }
 	}
 
 	// sort by index and subindex

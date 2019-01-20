@@ -155,11 +155,13 @@ bool EDSReader::parse_var(const std::string& section, uint16_t index, uint8_t su
 	std::string str_pdo_mapping = trim(m_ini.get(section+".PDOMapping", ""));
 	std::string str_obj_flags = trim(m_ini.get(section+".ObjFlags", ""));
 
-	Entry entry;
-	entry.name = var_name;
-	entry.type = Utils::type_code_to_type((uint16_t) Utils::hexstr_to_uint(str_data_type));
-	entry.index = index;
-	entry.subindex = subindex;
+//	entry.name = var_name;
+//	entry.type = Utils::type_code_to_type((uint16_t) Utils::hexstr_to_uint(str_data_type));
+//	entry.index = index;
+//	entry.subindex = subindex;
+  Entry entry(index, subindex, var_name,
+              Utils::type_code_to_type((uint16_t) Utils::hexstr_to_uint(str_data_type)),
+              Utils::string_to_access_type(str_access_type));
 
 	if (Config::eds_reader_mark_entries_as_generic) {
 		entry.is_generic = true;
@@ -170,8 +172,6 @@ bool EDSReader::parse_var(const std::string& section, uint16_t index, uint8_t su
 		return true;
 		// TODO: return false; ? At the moment, unsupported entries are not considered as error.
 	}
-
-	entry.access_type = Utils::string_to_access_type(str_access_type);
 
 	const Address address = Address{entry.index,entry.subindex};
 

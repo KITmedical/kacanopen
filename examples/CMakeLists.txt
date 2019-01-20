@@ -23,6 +23,7 @@ foreach(TARGET_SRC ${TARGETS_SRC})
 	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
 	target_link_libraries(${TARGET_NAME} kacanopen_core)
 	target_link_libraries(${TARGET_NAME} kacanopen_master)
+        target_link_libraries(${TARGET_NAME} kacanopen_tools)
 
 	if (NOT(${NO_ROS}))
 		target_link_libraries(${TARGET_NAME} kacanopen_ros_bridge)

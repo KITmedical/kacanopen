@@ -247,6 +247,10 @@ namespace kaco {
 		/// \todo Add index/subindex overload?
 		void add_receive_pdo_mapping(uint16_t cob_id, const std::string& entry_name, uint8_t offset);
 
+
+    void add_receive_pdo_mapping(uint16_t cob_id, const std::string& entry_name, uint8_t offset,
+                                 std::function<void(const ReceivePDOMapping&, std::vector<uint8_t>)> funtion);
+
 		/// Adds a transmit PDO mapping. This means values from the dictionary cache are sent to the device.
 		///
 		/// Example:
@@ -324,6 +328,8 @@ namespace kaco {
 		std::mutex m_transmit_pdo_mappings_mutex;
 		static const Value m_dummy_value;
 		EDSLibrary m_eds_library;
+
+    std::vector<uint16_t> cob_ids_;
 
 	};
 

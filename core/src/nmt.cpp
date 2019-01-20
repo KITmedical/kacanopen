@@ -41,8 +41,16 @@
 namespace kaco {
 
 NMT::NMT(Core& core) 
-	: m_core(core)
-	{ }
+  : m_core(core),
+    thread_alive_(true),
+  alive_devices_thread_(&NMT::check_alive_devices, this)
+{
+}
+
+NMT::~NMT(){
+  thread_alive_ = false;
+  alive_devices_thread_.join();
+}
 
 void NMT::send_nmt_message(uint8_t node_id, Command cmd) {
 	DEBUG_LOG("Set NMT state of "<<(unsigned)node_id<<" to "<<static_cast<uint32_t>(cmd));
@@ -98,7 +106,11 @@ void NMT::process_incoming_message(const Message& message) {
 		case 0:
 		case 2:
 		case 3:
-		case 5:
+    case 5:
+      // If the device is in our map, we set it to true
+      if (alive_devices_.find(message.get_node_id()) != alive_devices_.end())
+        alive_devices_[message.get_node_id()] = true;
+
 		case 127: {
 			// device is alive
 			// cleaning up old futures
@@ -122,6 +134,8 @@ void NMT::process_incoming_message(const Message& message) {
 						std::async(std::launch::async, callback, message.get_node_id())
 					);
 				}
+        // Register into our alive device vector
+        alive_devices_.insert({message.get_node_id(), true});
 			}
 			break;
 		}
@@ -184,7 +198,44 @@ void NMT::register_device_alive_callback(const DeviceAliveCallback& callback) {
 }
 
 void NMT::register_new_device_callback(const NewDeviceCallback& callback) {
-	register_device_alive_callback(callback);
+  register_device_alive_callback(callback);
+}
+
+void NMT::check_alive_devices()
+{
+  while (thread_alive_){
+    // Set all devices to dead
+    for (auto& device: alive_devices_)
+      device.second = false;
+
+    // Sleep for some time
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+
+    // Check if they are alive
+    for (auto& device: alive_devices_){
+      if (!device.second){
+        // Remove it from the map
+        alive_devices_.erase(device.first);
+        // Call dead callbacks
+        std::lock_guard<std::mutex> scoped_lock(m_device_alive_callbacks_mutex);
+        for (const auto& callback : m_device_dead_callbacks) {
+          DEBUG_LOG("Calling dead device callback (async)");
+          // The future returned by std::async has to be stored,
+          // otherwise the immediately called future destructor
+          // blocks until callback has finished.
+          std::lock_guard<std::mutex> scoped_lock(m_callback_futures_mutex);
+          m_callback_futures.push_front(
+            std::async(std::launch::async, callback, device.first)
+          );
+        }
+      }
+    }
+  }
+}
+
+void NMT::register_device_dead_callback(const DeviceAliveCallback& callback) {
+  std::lock_guard<std::mutex> scoped_lock(m_device_alive_callbacks_mutex);
+  m_device_dead_callbacks.push_back(callback);
 }
 
 } // end namespace kaco

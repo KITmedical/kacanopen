@@ -38,6 +38,8 @@
 #include <future>
 #include <forward_list>
 #include <mutex>
+#include <unordered_map>
+#include <thread>
 
 namespace kaco {
 	
@@ -76,6 +78,8 @@ namespace kaco {
 		/// Copy constructor deleted because of mutexes.
 		NMT(const NMT&) = delete;
 
+    ~NMT();
+
 		/// Process incoming NMT message.
 		/// \param message The received CanOpen message.
 		/// \remark thread-safe
@@ -111,6 +115,9 @@ namespace kaco {
 		/// \deprecated
 		void register_new_device_callback(const NewDeviceCallback& callback);
 
+    void check_alive_devices();
+    void register_device_dead_callback(const DeviceAliveCallback& callback);
+
 	private:
 
 		static const bool debug = false;
@@ -118,12 +125,16 @@ namespace kaco {
 
 		/// \todo rename to device_alive_callback
 		std::vector<NewDeviceCallback> m_device_alive_callbacks;
+    std::vector<NewDeviceCallback> m_device_dead_callbacks;
 		mutable std::mutex m_device_alive_callbacks_mutex;
 
 		static const bool m_cleanup_futures = true;
 		std::forward_list<std::future<void>> m_callback_futures; // forward_list because of remove_if
 		mutable std::mutex m_callback_futures_mutex;
 
+    std::unordered_map<size_t, bool> alive_devices_;
+    bool thread_alive_;
+    std::thread alive_devices_thread_;
 	};
 
 } // end namespace kaco

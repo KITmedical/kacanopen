@@ -28,87 +28,65 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
 #include <thread>
 #include <chrono>
 #include <cstdint>
-
 #include "master.h"
 #include "logger.h"
-
 int main() {
-
-	// Set the name of your CAN bus. "slcan0" is a common bus name
-	// for the first SocketCAN device on a Linux system.
-	const std::string busname = "slcan0";
-
-	// Set the baudrate of your CAN bus. Most drivers support the values
-	// "1M", "500K", "125K", "100K", "50K", "20K", "10K" and "5K".
-	const std::string baudrate = "500K";
-
-	PRINT("This example runs a counter completely without SDO transfers.");
-	PRINT("There must be a CiA 401 device which is configured to send 'Read input 8-bit/Digital Inputs 1-8'");
-	PRINT("and 'Read input 8-bit/Digital Inputs 9-16' via TPDO1 and to receive 'Write output 8-bit/Digital Outputs 1-8' via RPDO1.");
-
-	kaco::Master master;
-	if (!master.start(busname, baudrate)) {
-		PRINT("Starting Master failed.");
-		return EXIT_FAILURE;
-	}
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
-
-	if (master.num_devices()<1) {
-		ERROR("No devices found.");
-		return EXIT_FAILURE;
-	}
-
-	size_t index;
-	bool found = false;
-	for (size_t i=0; i<master.num_devices(); ++i) {
-		kaco::Device& device = master.get_device(i);
-		device.start();
-		if (device.get_device_profile_number()==401) {
-			index = i;
-			found = true;
-			PRINT("Found CiA 401 device with node ID "<<device.get_node_id());
-		}
-	}
-
-	if (!found) {
-		ERROR("This example is intended for use with a CiA 401 device but I can't find one.");
-		return EXIT_FAILURE;
-	}
-
-	kaco::Device& device = master.get_device(index);
-	const auto node_id = device.get_node_id();
-	// device.start(); // already started
-
-	device.load_dictionary_from_library();
-
-	DUMP(device.get_entry("Manufacturer device name"));
-
-	// TODO: first configure PDO on device side?
-
-	device.add_receive_pdo_mapping(0x180+node_id, "Read input 8-bit/Digital Inputs 1-8", 0); // offset 0,
-	device.add_receive_pdo_mapping(0x180+node_id, "Read input 8-bit/Digital Inputs 9-16", 1); // offset 1
-	
-	// transmit PDO on change
-	device.add_transmit_pdo_mapping(0x200+node_id, {{"Write output 8-bit/Digital Outputs 1-8", 0}}); // offset 0
-
-	// transmit PDO every 500ms
-	//device.add_transmit_pdo_mapping(0x20A, {{"write_output", 0, 0, 0}}, kaco::TransmissionType::PERIODIC, std::chrono::milliseconds(500));
-
-	for (uint8_t i=0; i<10; ++i) {
-
-		PRINT("Set output to 0x"<<std::hex<<i<<" (via cache!) and wait 1 second");
-		device.set_entry("Write output 8-bit/Digital Outputs 1-8", i, kaco::WriteAccessMethod::cache);
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-
-		DUMP_HEX(device.get_entry("Write output 8-bit/Digital Outputs 1-8",kaco::ReadAccessMethod::cache));
-		DUMP_HEX(device.get_entry("Read input 8-bit/Digital Inputs 1-8",kaco::ReadAccessMethod::cache));
-		DUMP_HEX(device.get_entry("Read input 8-bit/Digital Inputs 9-16",kaco::ReadAccessMethod::cache));
-
-	}
-
+    // Set the name of your CAN bus. "slcan0" is a common bus name
+    // for the first SocketCAN device on a Linux system.
+    const std::string busname = "slcan0";
+    // Set the baudrate of your CAN bus. Most drivers support the values
+    // "1M", "500K", "125K", "100K", "50K", "20K", "10K" and "5K".
+    const std::string baudrate = "500K";
+    PRINT("This example runs a counter completely without SDO transfers.");
+    PRINT("There must be a CiA 401 device which is configured to send 'Read input 8-bit/Digital Inputs 1-8'");
+    PRINT("and 'Read input 8-bit/Digital Inputs 9-16' via TPDO1 and to receive 'Write output 8-bit/Digital Outputs 1-8' via RPDO1.");
+    kaco::Master master;
+    if (!master.start(busname, baudrate)) {
+        PRINT("Starting Master failed.");
+        return EXIT_FAILURE;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    if (master.num_devices()<1) {
+        ERROR("No devices found.");
+        return EXIT_FAILURE;
+    }
+    size_t index;
+    bool found = false;
+    for (size_t i=0; i<master.num_devices(); ++i) {
+        kaco::Device& device = master.get_device(i);
+        device.start();
+        if (device.get_device_profile_number()==401) {
+            index = i;
+            found = true;
+            PRINT("Found CiA 401 device with node ID "<<device.get_node_id());
+        }
+    }
+    if (!found) {
+        ERROR("This example is intended for use with a CiA 401 device but I can't find one.");
+        return EXIT_FAILURE;
+    }
+    kaco::Device& device = master.get_device(index);
+    const auto node_id = device.get_node_id();
+    // device.start(); // already started
+    device.load_dictionary_from_library();
+    DUMP(device.get_entry("Manufacturer device name"));
+    // TODO: first configure PDO on device side?
+    device.add_receive_pdo_mapping(0x180+node_id, "Read input 8-bit/Digital Inputs 1-8", 0); // offset 0,
+    device.add_receive_pdo_mapping(0x180+node_id, "Read input 8-bit/Digital Inputs 9-16", 1); // offset 1
+    
+    // transmit PDO on change
+    device.add_transmit_pdo_mapping(0x200+node_id, {{"Write output 8-bit/Digital Outputs 1-8", 0}}); // offset 0
+    // transmit PDO every 500ms
+    //device.add_transmit_pdo_mapping(0x20A, {{"write_output", 0, 0, 0}}, kaco::TransmissionType::PERIODIC, std::chrono::milliseconds(500));
+    for (uint8_t i=0; i<10; ++i) {
+        PRINT("Set output to 0x"<<std::hex<<i<<" (via cache!) and wait 1 second");
+        device.set_entry("Write output 8-bit/Digital Outputs 1-8", i, kaco::WriteAccessMethod::cache);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        DUMP_HEX(device.get_entry("Write output 8-bit/Digital Outputs 1-8",kaco::ReadAccessMethod::cache));
+        DUMP_HEX(device.get_entry("Read input 8-bit/Digital Inputs 1-8",kaco::ReadAccessMethod::cache));
+        DUMP_HEX(device.get_entry("Read input 8-bit/Digital Inputs 9-16",kaco::ReadAccessMethod::cache));
+    }
 }
