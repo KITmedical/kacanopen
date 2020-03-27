@@ -2,45 +2,49 @@ cmake_minimum_required(VERSION 2.8)
 
 ### Compiler config ###
 
-# Use g++-4.9 if there is also an older g++ version on the system
-if("${CMAKE_CXX_COMPILER}" STREQUAL "" OR "${CMAKE_CXX_COMPILER}" STREQUAL "gcc" OR "${CMAKE_CXX_COMPILER}" STREQUAL "g++")
-	find_program(NEWER_GNU_CXX_COMPILER g++-4.9)
-	if (NOT "${NEWER_GNU_CXX_COMPILER}" STREQUAL "")
-		set(CMAKE_CXX_COMPILER ${NEWER_GNU_CXX_COMPILER})
-		message("Using ${CMAKE_CXX_COMPILER} as compiler.")
+# ROS comes with the correct compilers pre-shipped and uses at least g++-5.4.
+# Thus we do not have to check the compiler, if the code is build with ROS.
+if (${NO_ROS})
+	# Use g++-4.9 if there is also an older g++ version on the system
+	if("${CMAKE_CXX_COMPILER}" STREQUAL "" OR "${CMAKE_CXX_COMPILER}" STREQUAL "gcc" OR "${CMAKE_CXX_COMPILER}" STREQUAL "g++")
+		find_program(NEWER_GNU_CXX_COMPILER g++-4.9)
+		if (NOT "${NEWER_GNU_CXX_COMPILER}" STREQUAL "")
+			set(CMAKE_CXX_COMPILER ${NEWER_GNU_CXX_COMPILER})
+			message("Using ${CMAKE_CXX_COMPILER} as compiler.")
+		endif()
 	endif()
-endif()
 
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "")
-	if("${CMAKE_CXX_COMPILER}" MATCHES ".*g[+][+].*")
-		set(CMAKE_CXX_COMPILER_ID "GNU")
+	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "")
+		if("${CMAKE_CXX_COMPILER}" MATCHES ".*g[+][+].*")
+			set(CMAKE_CXX_COMPILER_ID "GNU")
+		endif()
 	endif()
-endif()
 
-if("${CMAKE_CXX_COMPILER_VERSION}" STREQUAL "")
-	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-		execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version COMMAND head -1 COMMAND awk "{ print $NF }" OUTPUT_VARIABLE CMAKE_CXX_COMPILER_VERSION)
+	if("${CMAKE_CXX_COMPILER_VERSION}" STREQUAL "")
+		if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+			execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version COMMAND head -1 COMMAND awk "{ print $NF }" OUTPUT_VARIABLE CMAKE_CXX_COMPILER_VERSION)
+		elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+			message(FATAL_ERROR "Setting CMAKE_CXX_COMPILER_ID not implemented.")
+		endif()
+	endif()
+
+	# GCC ist not supported until 4.9
+	# Clang ist not supported until 3.6
+	if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+		if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
+			message(FATAL_ERROR "GCC version must be at least 4.9. Earlier versions miss std::regex support.")
+		endif()
 	elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-		message(FATAL_ERROR "Setting CMAKE_CXX_COMPILER_ID not implemented.")
+		if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6)
+			message(FATAL_ERROR "Clang version must be at least 3.6! Earlier versions don't support debug information for auto.")
+		endif()
+	else()
+		message(FATAL_ERROR "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
 	endif()
-endif()
-
-# GCC ist not supported until 4.9
-# Clang ist not supported until 3.6
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-	if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
-		message(FATAL_ERROR "GCC version must be at least 4.9. Earlier versions miss std::regex support.")
-	endif()
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-	if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6)
-		message(FATAL_ERROR "Clang version must be at least 3.6! Earlier versions don't support debug information for auto.")
-	endif()
-else()
-	message(FATAL_ERROR "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
 endif()
 
 # Compiler flags
-# TOD0: -std=c++14 will be obsolete when reverting to minimum CMake version 3.2 and
+# TODO: -std=c++14 will be obsolete when reverting to minimum CMake version 3.2 and
 #       using set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 14) again.
 project(kacanopen C CXX)
 
@@ -111,7 +115,7 @@ message(STATUS "Pause between two consecutively sent CAN frames is set to ${CONS
 ### dependencies ###
 
 find_package(Threads)
-find_package(Boost 1.46.1 COMPONENTS system filesystem REQUIRED) 
+find_package(Boost 1.46.1 COMPONENTS system filesystem REQUIRED)
 
 # Boost required for property_tree / ini_parser
 if(NOT(Boost_FOUND))
@@ -209,5 +213,3 @@ add_subdirectory(drivers)
 add_subdirectory(core)
 add_subdirectory(master)
 add_subdirectory(examples)
-
-
