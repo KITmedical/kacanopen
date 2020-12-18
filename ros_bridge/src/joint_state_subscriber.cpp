@@ -28,7 +28,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #include "joint_state_subscriber.h"
 #include "utils.h"
 #include "logger.h"
@@ -39,77 +39,139 @@
 
 #include <string>
 
-namespace kaco {
-
-JointStateSubscriber::JointStateSubscriber(Device& device, int32_t position_0_degree,
-	int32_t position_360_degree, std::string topic_name)
-	: m_device(device), m_position_0_degree(position_0_degree),
-		m_position_360_degree(position_360_degree), m_topic_name(topic_name),
-		m_initialized(false)
+namespace kaco
 {
 
-	const uint16_t profile = device.get_device_profile_number();
+	JointStateSubscriber::JointStateSubscriber(Device &device,
+											   int32_t position_0_degree,
+											   int32_t position_360_degree,
+											   int32_t velocity_nominator,
+											   int32_t velocity_denominator,
+											   std::string topic_name)
+		: m_device(device),
+		  m_position_0_degree(position_0_degree),
+		  m_position_360_degree(position_360_degree),
+		  m_velocity_nominator(velocity_nominator),
+		  m_velocity_denominator(velocity_denominator),
+		  m_topic_name(topic_name),
+		  m_initialized(false)
+	{
 
-	if (profile != 402) {
-		throw std::runtime_error("JointStatePublisher can only be used with a CiA 402 device."
-			" You passed a device with profile number "+std::to_string(profile));
+		const uint16_t profile = device.get_device_profile_number();
+
+		if (profile != 402)
+		{
+			throw std::runtime_error("JointStatePublisher can only be used with a CiA 402 device."
+									 " You passed a device with profile number " +
+									 std::to_string(profile));
+		}
+
+		const Value operation_mode = device.get_entry("Modes of operation display");
+
+		// TODO: look into INTERPOLATED_POSITION_MODE
+		if (operation_mode != Profiles::constants.at(402).at("profile_position_mode") && operation_mode != Profiles::constants.at(402).at("interpolated_position_mode") && operation_mode != Profiles::constants.at(402).at("profile_velocity_mode") && operation_mode != Profiles::constants.at(402).at("torque_mode"))
+		{
+			throw std::runtime_error("[JointStatePublisher] Only profile_position/profile_velocity/torque mode supported yet."
+									 " Try device.set_entry(\"modes_of_operation\", device.get_constant(\"profile_position_mode\"));");
+		}
+
+		if (m_topic_name.empty())
+		{
+			uint8_t node_id = device.get_node_id();
+			m_topic_name = "device" + std::to_string(node_id) + "/set_joint_state";
+		}
 	}
 
-	const Value operation_mode = device.get_entry("Modes of operation display");
+	void JointStateSubscriber::advertise()
+	{
 
-	// TODO: look into INTERPOLATED_POSITION_MODE
-	if (operation_mode != Profiles::constants.at(402).at("profile_position_mode")
-		&& operation_mode != Profiles::constants.at(402).at("interpolated_position_mode")) {
-		throw std::runtime_error("[JointStatePublisher] Only position mode supported yet."
-			" Try device.set_entry(\"modes_of_operation\", device.get_constant(\"profile_position_mode\"));");
+		assert(!m_topic_name.empty());
+		DEBUG_LOG("Advertising " << m_topic_name);
+		ros::NodeHandle nh;
+		m_subscriber = nh.subscribe(m_topic_name, queue_size, &JointStateSubscriber::receive, this);
+		m_initialized = true;
 	}
 
-	if (m_topic_name.empty()) {
-		uint8_t node_id = device.get_node_id();
-		m_topic_name = "device" + std::to_string(node_id) + "/set_joint_state";
+	void JointStateSubscriber::receive(const sensor_msgs::JointState &msg)
+	{
+
+		try
+		{
+
+			// Read position value from message
+			assert(msg.position.size() > 0);
+			const int32_t pos = rev_to_pos(msg.position[0]);
+
+			// Read velocity value from message
+			assert(msg.velocity.size() > 0);
+			const int32_t vel = rev_p_s_to_vel(msg.velocity[0]);
+
+			// Read torque value from message
+			assert(msg.effort.size() > 0);
+			const int32_t tor = eff_to_tor(msg.velocity[0]);
+
+			DEBUG_LOG("Received JointState message");
+			DEBUG_LOG("Position:");
+			DEBUG_DUMP(pos);
+			DEBUG_DUMP(msg.position[0]);
+			DEBUG_LOG("Velocity:");
+			DEBUG_DUMP(vel);
+			DEBUG_DUMP(msg.velocity[0]);
+			DEBUG_LOG("Torque:");
+			DEBUG_DUMP(tor);
+			DEBUG_DUMP(msg.effort[0]);
+
+			const Value operation_mode = m_device.get_entry("Modes of operation display");
+
+			if (operation_mode == Profiles::constants.at(402).at("profile_position_mode"))
+			{
+				DEBUG_LOG("Executing target position");
+				m_device.execute("set_target_position", pos);
+			}
+			else if (operation_mode == Profiles::constants.at(402).at("profile_velocity_mode"))
+			{
+				DEBUG_LOG("Executing target velocity");
+				m_device.execute("set_target_velocity", vel);
+			}
+			else if (operation_mode == Profiles::constants.at(402).at("torque_mode"))
+			{
+				DEBUG_LOG("Executing target torque");
+				m_device.execute("set_target_torque", tor);
+			}
+			else
+			{
+				ERROR("[JointStatePublisher] unkown/unsupported mode in execution");
+			}
+		}
+		catch (const sdo_error &error)
+		{
+			// TODO: only catch timeouts?
+			ERROR("Exception in JointStateSubscriber::receive(): " << error.what());
+		}
 	}
 
-}
-
-void JointStateSubscriber::advertise() {
-
-	assert(!m_topic_name.empty());
-	DEBUG_LOG("Advertising "<<m_topic_name);
-	ros::NodeHandle nh;
-	m_subscriber = nh.subscribe(m_topic_name, queue_size, &JointStateSubscriber::receive, this);
-	m_initialized = true;
-
-}
-
-void JointStateSubscriber::receive(const sensor_msgs::JointState& msg) {
-
-	try {
-	
-		assert(msg.position.size()>0);
-		const int32_t pos = rad_to_pos(msg.position[0]);
-
-		DEBUG_LOG("Received JointState message");
-		DEBUG_DUMP(pos);
-		DEBUG_DUMP(msg.position[0]);
-
-		m_device.execute("set_target_position",pos);
-		
-	} catch (const sdo_error& error) {
-		// TODO: only catch timeouts?
-		ERROR("Exception in JointStateSubscriber::receive(): "<<error.what());
+	int32_t JointStateSubscriber::rev_to_pos(double rad) const
+	{
+		const double p = rad;
+		const double min = m_position_0_degree;
+		const double max = m_position_360_degree;
+		const double dist = max - min;
+		const double result = (p * dist) + min;
+		return (int32_t)result;
 	}
 
-}
+	int32_t JointStateSubscriber::rev_p_s_to_vel(double rad) const
+	{
+		const double v = rad;
+		const double nom = m_velocity_nominator;
+		const double denom = m_velocity_denominator;
+		const double result = v / (nom / denom);
+		return (int32_t)result;
+	}
 
-int32_t JointStateSubscriber::rad_to_pos(double rad) const {
-
-	const double p = rad;
-	const double min = m_position_0_degree;
-	const double max = m_position_360_degree;
-	const double dist = max - min;
-	const double result = ((p/(2*pi()))*dist)+min;
-	return (int32_t) result;
-
-}
+	int32_t JointStateSubscriber::eff_to_tor(double eff) const
+	{
+		return (int32_t)eff * 1000;
+	}
 
 } // end namespace kaco

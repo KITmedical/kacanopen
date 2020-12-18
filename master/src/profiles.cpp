@@ -76,6 +76,22 @@ namespace kaco {
 						device.execute("unset_controlword_flag","controlword_pp_new_set_point");
 						return Value();
 					}
+				},
+				{
+					"set_target_velocity",
+					[](Device& device,const Value& target_velocity) -> Value {
+						DEBUG_LOG("Set target vel to "<<target_velocity);
+						device.set_entry("Target velocity", target_velocity);
+						return Value();
+					}
+				},
+				{
+					"set_target_torque",
+					[](Device& device,const Value& target_torque) -> Value {
+						DEBUG_LOG("Set target tor to "<<target_torque);
+						device.set_entry("Target torque", target_torque);
+						return Value();
+					}
 				}
 			}
 		}
@@ -112,15 +128,15 @@ namespace kaco {
 				{ "controlword_vl_rfg_enable",	static_cast<uint16_t>(1<<4) },
 				{ "controlword_vl_rfg_unlock",	static_cast<uint16_t>(1<<5) },
 				{ "controlword_vl_use_ref",		static_cast<uint16_t>(1<<6) },
-				
+
 				// control word flags profile position mode specific
 				{ "controlword_pp_new_set_point",				static_cast<uint16_t>(1<<4) },
 				{ "controlword_pp_change_set_immediately",		static_cast<uint16_t>(1<<5) },
 				{ "controlword_pp_abs_rel",						static_cast<uint16_t>(1<<6) },
-				
+
 				// control word flags homing mode specific
 				{ "controlword_hm_operation_start",	static_cast<uint16_t>(1<<4) },
-				
+
 				// control word flags interpolated position mode specific
 				{ "controlword_ip_enable_ip_mode",	static_cast<uint16_t>(1<<4) },
 
@@ -145,15 +161,15 @@ namespace kaco {
 				// status word flags profile position mode specific
 				{ "statusword_pp_set_point_acknowledge",	static_cast<uint16_t>(1<<12) },
 				{ "statusword_pp_following_error",			static_cast<uint16_t>(1<<13) },
-				
+
 				// status word flags profile velocity mode specific
 				{ "statusword_pv_speed",				static_cast<uint16_t>(1<<12) },
 				{ "statusword_pv_max_slippage_error",	static_cast<uint16_t>(1<<13) },
-				
+
 				// status word flags homing mode specific
 				{ "statusword_hm_homing_attained",	static_cast<uint16_t>(1<<12) },
 				{ "statusword_hm_homing_error",		static_cast<uint16_t>(1<<13) },
-				
+
 				// status word flags interpolated position mode specific
 				{ "statusword_ip_ip_mode_active",	static_cast<uint16_t>(1<<12) }
 			}
