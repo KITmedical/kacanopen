@@ -28,7 +28,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #include "master.h"
 #include "core.h"
 #include "logger.h"
@@ -93,7 +93,7 @@ void Master::device_alive_callback(const uint8_t node_id) {
 	} else {
 		WARN("Device with node ID "<<node_id<<" already exists. Ignoring...");
 	}
-	
+
 }
 
 

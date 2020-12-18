@@ -35,7 +35,7 @@
 #include "joint_state_subscriber.h"
 #include "entry_publisher.h"
 #include "entry_subscriber.h"
- 
+
 #include <thread>
 #include <chrono>
 #include <memory>
@@ -117,6 +117,7 @@ int main(int argc, char* argv[]) {
 
 			found = true;
 
+			// Choose between "profile_position_mode", "profile_velocity_mode", or "torque_mode"
 			PRINT("Set position mode");
 			device.set_entry("modes_of_operation", device.get_constant("profile_position_mode"));
 
@@ -125,10 +126,10 @@ int main(int argc, char* argv[]) {
 
 			// TODO: target_position should be mapped to a PDO
 
-			auto jspub = std::make_shared<kaco::JointStatePublisher>(device, 0, 350000);
+			auto jspub = std::make_shared<kaco::JointStatePublisher>(device, 0, 350000, 1, 60);
 			bridge.add_publisher(jspub, loop_rate);
-			
-			auto jssub = std::make_shared<kaco::JointStateSubscriber>(device, 0, 350000);
+
+			auto jssub = std::make_shared<kaco::JointStateSubscriber>(device, 0, 350000, 1, 60);
 			bridge.add_subscriber(jssub);
 
 		}

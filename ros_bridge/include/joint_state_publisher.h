@@ -28,17 +28,18 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #pragma once
 
 #include "device.h"
 #include "publisher.h"
 #include "ros/ros.h"
- 
+
 #include <string>
 #include <cmath>
 
-namespace kaco {
+namespace kaco
+{
 
 	/// This class provides a Publisher implementation for
 	/// use with kaco::Bridge and a CiA 402 motor device.
@@ -48,10 +49,10 @@ namespace kaco {
 	/// Currenty, only the motor angle is published.
 	/// You have to initialize the motor on your own.
 	/// The motor is expected to be in position mode.
-	class JointStatePublisher : public Publisher {
+	class JointStatePublisher : public Publisher
+	{
 
 	public:
-
 		/// Constructor
 		/// \param device a CiA 402 compliant motor device object
 		/// \param position_0_degree The motor position (dictionary
@@ -62,8 +63,15 @@ namespace kaco {
 		/// \param position_actual_field Name of the dictionary entry to use.
 		/// \param topic_name Custom topic name. Leave out for default.
 		/// \throws std::runtime_error if device is not CiA 402 compliant and in position_mode.
-		JointStatePublisher(Device& device, int32_t position_0_degree,
-			int32_t position_360_degree, const std::string& position_actual_field = "Position actual value", const std::string& topic_name = "");
+		JointStatePublisher(Device &device,
+							int32_t position_0_degree,
+							int32_t position_360_degree,
+							int32_t velocity_nominator,
+							int32_t velocity_denominator,
+							const std::string &position_actual_field = "Position actual value",
+							const std::string &velocity_actual_field = "Velocity actual value",
+							const std::string& torque_actual_field = "Torque actual value",
+							const std::string &topic_name = "");
 
 		/// \see interface Publisher
 		void advertise() override;
@@ -72,27 +80,36 @@ namespace kaco {
 		void publish() override;
 
 	private:
-
 		static const bool debug = false;
 
 		// TODO: let the user change this?
 		static const unsigned queue_size = 100;
 
-		/// converts "position actiual value" from CanOpen to radiant using m_position_0_degree and m_position_360_degree
-		double pos_to_rad(int32_t pos) const;
+		/// converts "position actual value" from CanOpen to revolutions using m_position_0_degree and m_position_360_degree
+		double pos_to_rev(int32_t pos) const;
+
+		/// converts "velocity actual value" from CanOpen to revolutions per second using m_velocity_nominator and m_velocity_denominator
+		double vel_to_rev_p_s(int32_t vel) const;
+
+		/// converts "torque actual value" from CanOpen to effort
+		double tor_to_eff(int32_t tor) const;
+
 
 		/// constant PI
 		static constexpr double pi() { return std::acos(-1); }
 
-		Device& m_device;
+		Device &m_device;
 		int32_t m_position_0_degree;
 		int32_t m_position_360_degree;
+		int32_t m_velocity_nominator;
+		int32_t m_velocity_denominator;
 		std::string m_position_actual_field;
+		std::string m_velocity_actual_field;
+		std::string m_torque_actual_field;
 		std::string m_topic_name;
 		bool m_initialized;
 
 		ros::Publisher m_publisher;
-
 	};
 
 } // end namespace kaco
