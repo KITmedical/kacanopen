@@ -117,6 +117,7 @@ int main(int argc, char* argv[]) {
 
 			found = true;
 
+			// Choose between "profile_position_mode", "profile_velocity_mode", or "torque_mode"
 			PRINT("Set position mode");
 			device.set_entry("modes_of_operation", device.get_constant("profile_position_mode"));
 
