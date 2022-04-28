@@ -101,12 +101,12 @@ namespace kaco {
 
 		std::vector<std::unique_ptr<Device>> m_devices;
 		std::bitset<265> m_device_alive;
+		mutable std::mutex m_devices_mutex;
 
 		NMT::DeviceAliveCallback m_device_alive_callback_functional;
 		bool m_running{false};
 
 		void device_alive_callback(const uint8_t node_id);
-
 	};
 
 } // end namespace kaco
